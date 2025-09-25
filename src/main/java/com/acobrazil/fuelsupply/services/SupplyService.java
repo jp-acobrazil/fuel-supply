@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.acobrazil.fuelsupply.repositories.SupplyRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import com.acobrazil.fuelsupply.models.exceptions.DriverNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.StreamSupport;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SupplyService {
@@ -33,31 +35,36 @@ public class SupplyService {
 	private final SupplyRepository supplyRepository;
 	private final DriverRepository driverRepository;
 	private final VehicleRepository vehicleRepository;
-	
-	@Value("${upload.directory}")
-    private String uploadDir;
 
-	public SupplyResponseDto createSupply(SupplyRequestDto supply, MultipartFile pumpPhoto, MultipartFile odometerPhoto,
-			List<MultipartFile> attachments) {
+	@Value("${upload.directory}")
+	private String uploadDir;
+
+	public SupplyResponseDto createSupply(SupplyRequestDto supply) {
+		log.info("Iniciando criação de abastecimento para motoristaId={}, placa={}", supply.driverId(), supply.plate());
 
 		Supply supplyEntity = Supply.builder().date(LocalDateTime.now()).driverId(supply.driverId())
 				.liters(supply.liters()).pricePerLiter(supply.pricePerLiter()).plate(supply.plate())
 				.fuelType(supply.fuelType()).odometer(supply.odometer()).loadNumber(null).inRoute("N")
 				.stationCnpj(supply.stationCnpj()).stationName(null).obs(supply.obs()).build();
-
-		Driver driver = driverRepository.findById(supply.driverId())
-				.orElseThrow(() -> new DriverNotFoundException("Driver not found with id: " + supply.driverId()));
 		
+		log.info("Entidade de abastecimento criada: {}", supplyEntity);
+
+		Driver driver = driverRepository.findById(supply.driverId()).orElseThrow(() -> {
+			log.error("Motorista não encontrado! driverId={}", supply.driverId());
+			return new DriverNotFoundException("Driver not found with id: " + supply.driverId());
+		});
 		supplyEntity.setDriver(driver);
+		log.debug("Motorista encontrado: {}", driver.getName());
 
-		Vehicle vehicle = vehicleRepository.findByPlate(supply.plate())
-				.orElseThrow(() -> new VehicleNotFoundException("Vehicle not found with plate: " + supply.plate()));
-		
+		Vehicle vehicle = vehicleRepository.findByPlate(supply.plate()).orElseThrow(() -> {
+			log.error("Veículo não encontrado! plate={}", supply.plate());
+			return new VehicleNotFoundException("Vehicle not found with plate: " + supply.plate());
+		});
 		supplyEntity.setVehicle(vehicle);
+		log.debug("Veículo encontrado: {}", vehicle.getDescription());
 
 		Supply savedSupply = supplyRepository.save(supplyEntity);
-
-		saveSupplyPhotos(savedSupply.getId(), pumpPhoto, odometerPhoto, attachments);
+		log.info("Abastecimento salvo com sucesso! id={}", savedSupply.getId());
 
 		return toDto(savedSupply);
 	}
@@ -73,7 +80,7 @@ public class SupplyService {
 	}
 
 	public SupplyResponseDto toDto(Supply supply) {
-		Driver driver = supply.getDriver();	
+		Driver driver = supply.getDriver();
 		DriverDto driverDto = new DriverDto(driver.getDriverId(), driver.getName());
 
 		Vehicle vehicle = supply.getVehicle();
@@ -84,33 +91,40 @@ public class SupplyService {
 				supply.getFuelType(), supply.getOdometer(), supply.getObs(), driverDto, vehicleDto);
 	}
 
-	private void saveSupplyPhotos(Long supplyId, MultipartFile pumpPhoto, MultipartFile odometerPhoto,
+	public void saveSupplyPhotos(Long supplyId, MultipartFile pumpPhoto, MultipartFile odometerPhoto,
 			List<MultipartFile> attachments) {
 
 		Path supplyDir = Paths.get(uploadDir, "supply_" + supplyId);
 		try {
 			Files.createDirectories(supplyDir);
+			log.debug("Diretório de fotos criado em {}", supplyDir.toAbsolutePath());
 		} catch (IOException e) {
+			log.error("Erro ao criar diretório de fotos para supplyId={}", supplyId, e);
 			throw new RuntimeException("Erro ao criar diretório de fotos", e);
 		}
 
 		try {
 			if (pumpPhoto != null && !pumpPhoto.isEmpty()) {
 				saveFile(supplyDir, "pumpPhoto", pumpPhoto);
+				log.info("Foto da bomba salva com sucesso.");
 			}
 			if (odometerPhoto != null && !odometerPhoto.isEmpty()) {
 				saveFile(supplyDir, "odometerPhoto", odometerPhoto);
+				log.info("Foto do odômetro salva com sucesso.");
 			}
 			if (attachments != null) {
 				int idx = 1;
 				for (MultipartFile file : attachments) {
 					if (file != null && !file.isEmpty()) {
 						saveFile(supplyDir, "attach_" + idx, file);
+						log.info("Anexo {} salvo com sucesso: {}", idx, file.getOriginalFilename());
 						idx++;
 					}
 				}
 			}
 		} catch (IOException e) {
+			log.info("IOException ao salvar fotos do abastecimento supplyId={}", supplyId, e);
+			log.error("Erro ao salvar fotos do abastecimento supplyId={}", supplyId, e);
 			throw new RuntimeException("Erro ao salvar fotos do abastecimento", e);
 		}
 	}

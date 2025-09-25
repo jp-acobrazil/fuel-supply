@@ -20,17 +20,21 @@ public class SupplyController {
 
     private final SupplyService supplyService;
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<SupplyResponseDto> addSupply(
-            @RequestPart("supply") SupplyRequestDto supplyDto,
+    @PostMapping
+    public ResponseEntity<SupplyResponseDto> createSupply(@RequestBody SupplyRequestDto supplyDto) {
+    	SupplyResponseDto supply = supplyService.createSupply(supplyDto);
+        return ResponseEntity.ok(supply);
+    }
+    
+    @PostMapping(value = "/{supplyId}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<String> uploadSupplyFiles(
+            @PathVariable Long supplyId,
             @RequestPart(value = "pumpPhoto", required = false) MultipartFile pumpPhoto,
             @RequestPart(value = "odometerPhoto", required = false) MultipartFile odometerPhoto,
             @RequestPart(value = "attachments", required = false) List<MultipartFile> attachments
     ) {
-    	SupplyResponseDto supply = supplyService.createSupply(
-                supplyDto, pumpPhoto, odometerPhoto, attachments
-        );
-        return ResponseEntity.ok(supply);
+        supplyService.saveSupplyPhotos(supplyId, pumpPhoto, odometerPhoto, attachments);
+        return ResponseEntity.ok("Arquivos enviados com sucesso!");
     }
 
     @GetMapping

@@ -58,6 +58,12 @@ public class Supply {
 
     @Column(name = "obs", length = 200)
     private String obs;
+    
+    @Column(name = "status", length = 1)
+    private String status; // Ex.: 'P', 'A', 'R'
+
+    @Column(name = "codfuncaprov")
+    private Integer approverId; // Código do funcionário que aprovou
 
     /** RELACIONAMENTOS **/
 
