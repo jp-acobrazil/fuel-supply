@@ -2,12 +2,11 @@ package com.acobrazil.fuelsupply.controllers;
 
 import com.acobrazil.fuelsupply.models.dtos.SupplyRequestDto;
 import com.acobrazil.fuelsupply.models.dtos.SupplyResponseDto;
+import com.acobrazil.fuelsupply.models.dtos.SupplyValidationDto;
 import com.acobrazil.fuelsupply.services.SupplyService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-
 import java.util.List;
-
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -45,6 +44,57 @@ public class SupplyController {
     @GetMapping("/{id}")
     public ResponseEntity<SupplyResponseDto> getSupplyById(@PathVariable Long id) {
         return ResponseEntity.ok(supplyService.getSupplyById(id));
+    }
+    
+    @GetMapping("/driver/{driverId}")
+    public ResponseEntity<List<SupplyResponseDto>> getSuppliesByDriverId(@PathVariable Long driverId) {
+		List<SupplyResponseDto> supplies = supplyService.getSuppliesByDriverId(driverId);
+		return ResponseEntity.ok(supplies);
+	}
+    
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<SupplyResponseDto> validateSupply(
+            @PathVariable Long id,
+            @RequestBody SupplyValidationDto updateDto
+    ) {
+        SupplyResponseDto updated = supplyService.validateSupply(
+                id,
+				updateDto.approverId(),
+				updateDto.status(),
+				updateDto.comment()
+        );
+        return ResponseEntity.ok(updated);
+    }
+    
+    @PutMapping("/{id}")
+    public ResponseEntity<SupplyResponseDto> updateSupply(
+            @PathVariable Long id,
+            @RequestBody SupplyRequestDto updatedDto
+    ) {
+        return ResponseEntity.ok(supplyService.updateSupply(id, updatedDto));
+    }
+    
+    @GetMapping("/{supplyId}/files")
+    public ResponseEntity<List<String>> listSupplyFiles(@PathVariable Long supplyId) {
+        List<String> files = supplyService.getSupplyImages(supplyId);
+        return ResponseEntity.ok(files);
+    }
+    
+    @GetMapping("/{supplyId}/files/{fileName}")
+    public ResponseEntity<Resource> downloadSupplyFile(
+            @PathVariable Long supplyId,
+            @PathVariable String fileName) {
+
+        Resource resource = supplyService.getSupplyFile(supplyId, fileName);
+        if (resource == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        String contentType = supplyService.getContentType(resource);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .body(resource);
     }
 
 }

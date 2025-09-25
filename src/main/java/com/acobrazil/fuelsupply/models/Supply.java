@@ -60,11 +60,14 @@ public class Supply {
     private String obs;
     
     @Column(name = "status", length = 1)
-    private String status; // Ex.: 'P', 'A', 'R'
+    private char status;
 
     @Column(name = "codfuncaprov")
     private Integer approverId; // Código do funcionário que aprovou
-
+    
+    @Column(name = "comentario_aprovacao", length = 500)
+    private String approvalComment;
+    
     /** RELACIONAMENTOS **/
 
     @ManyToOne(fetch = FetchType.LAZY)

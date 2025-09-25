@@ -7,6 +7,7 @@ import com.acobrazil.fuelsupply.models.dtos.DriverDto;
 import com.acobrazil.fuelsupply.models.dtos.SupplyRequestDto;
 import com.acobrazil.fuelsupply.models.dtos.SupplyResponseDto;
 import com.acobrazil.fuelsupply.models.dtos.VehicleDto;
+import com.acobrazil.fuelsupply.models.enums.SupplyStatus;
 import com.acobrazil.fuelsupply.models.exceptions.SupplyNotFoundException;
 import com.acobrazil.fuelsupply.models.exceptions.VehicleNotFoundException;
 import com.acobrazil.fuelsupply.repositories.DriverRepository;
@@ -14,6 +15,8 @@ import com.acobrazil.fuelsupply.repositories.VehicleRepository;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import com.acobrazil.fuelsupply.repositories.SupplyRepository;
@@ -25,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 @Slf4j
@@ -45,8 +49,9 @@ public class SupplyService {
 		Supply supplyEntity = Supply.builder().date(LocalDateTime.now()).driverId(supply.driverId())
 				.liters(supply.liters()).pricePerLiter(supply.pricePerLiter()).plate(supply.plate())
 				.fuelType(supply.fuelType()).odometer(supply.odometer()).loadNumber(null).inRoute("N")
-				.stationCnpj(supply.stationCnpj()).stationName(null).obs(supply.obs()).build();
-		
+				.stationCnpj(supply.stationCnpj()).stationName(null).obs(supply.obs())
+				.status(SupplyStatus.CREATED.getStatus()).build();
+
 		log.info("Entidade de abastecimento criada: {}", supplyEntity);
 
 		Driver driver = driverRepository.findById(supply.driverId()).orElseThrow(() -> {
@@ -79,6 +84,44 @@ public class SupplyService {
 		return toDto(supply);
 	}
 
+	public SupplyResponseDto updateSupply(Long id, SupplyRequestDto updatedDto) {
+		Supply existing = supplyRepository.findById(id)
+				.orElseThrow(() -> new SupplyNotFoundException("Supply not found with id: " + id));
+
+		// só permite edição se o status for REJECTED
+		if (existing.getStatus() != SupplyStatus.REJECTED.getStatus()) {
+			throw new IllegalStateException("Só é possível editar um abastecimento REPROVADO.");
+		}
+
+		existing.setLiters(updatedDto.liters());
+		existing.setPricePerLiter(updatedDto.pricePerLiter());
+		existing.setPlate(updatedDto.plate());
+		existing.setFuelType(updatedDto.fuelType());
+		existing.setOdometer(updatedDto.odometer());
+		existing.setStationCnpj(updatedDto.stationCnpj());
+		existing.setObs(updatedDto.obs());
+
+		// Resetar status para "CREATED" quando motorista reenvia
+		existing.setStatus(SupplyStatus.CREATED.getStatus());
+		existing.setApproverId(null);
+		existing.setApprovalComment(null);
+
+		Supply updated = supplyRepository.save(existing);
+		return toDto(updated);
+	}
+
+	public SupplyResponseDto validateSupply(Long id, Integer approverId, SupplyStatus status, String comment) {
+		Supply supply = supplyRepository.findById(id)
+				.orElseThrow(() -> new SupplyNotFoundException("Supply not found with id: " + id));
+
+		supply.setApproverId(approverId);
+		supply.setStatus(status.getStatus());
+		supply.setApprovalComment(comment);
+
+		Supply updated = supplyRepository.save(supply);
+		return toDto(updated);
+	}
+
 	public SupplyResponseDto toDto(Supply supply) {
 		Driver driver = supply.getDriver();
 		DriverDto driverDto = new DriverDto(driver.getDriverId(), driver.getName());
@@ -88,7 +131,8 @@ public class SupplyService {
 				vehicle.getDescription(), vehicle.getIsOwn());
 
 		return new SupplyResponseDto(supply.getId(), supply.getDate(), supply.getLiters(), supply.getPricePerLiter(),
-				supply.getFuelType(), supply.getOdometer(), supply.getObs(), driverDto, vehicleDto);
+				supply.getFuelType(), supply.getOdometer(), supply.getObs(), supply.getStatus(), supply.getApproverId(),
+				supply.getApprovalComment(), driverDto, vehicleDto);
 	}
 
 	public void saveSupplyPhotos(Long supplyId, MultipartFile pumpPhoto, MultipartFile odometerPhoto,
@@ -137,8 +181,67 @@ public class SupplyService {
 			ext = originalName.substring(originalName.lastIndexOf("."));
 		}
 
+		// Apaga qualquer arquivo existente com o mesmo prefixo (independente da
+		// extensão)
+		try (Stream<Path> files = Files.list(dir)) {
+			files.filter(path -> path.getFileName().toString().startsWith(prefix)).forEach(existing -> {
+				try {
+					Files.delete(existing);
+					log.debug("Arquivo antigo deletado: {}", existing.getFileName());
+				} catch (IOException e) {
+					log.warn("Não foi possível deletar arquivo antigo: {}", existing, e);
+				}
+			});
+		}
+
 		Path filePath = dir.resolve(prefix + ext);
 		Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+		log.info("Novo arquivo salvo: {}", filePath.getFileName());
+	}
+
+	public List<String> getSupplyImages(Long supplyId) {
+		Path supplyDir = Paths.get(uploadDir, "supply_" + supplyId);
+		if (!Files.exists(supplyDir)) {
+			return List.of();
+		}
+
+		try (Stream<Path> files = Files.list(supplyDir)) {
+			return files.filter(Files::isRegularFile).map(path -> path.getFileName().toString()).toList();
+		} catch (IOException e) {
+			log.error("Erro ao listar imagens do supplyId={}", supplyId, e);
+			return List.of();
+		}
+	}
+
+	public Resource getSupplyFile(Long supplyId, String fileName) {
+		Path filePath = Paths.get(uploadDir, "supply_" + supplyId, fileName);
+
+		if (!Files.exists(filePath)) {
+			return null; // controller decide como responder
+		}
+
+		try {
+			return new FileSystemResource(filePath);
+		} catch (Exception e) {
+			log.error("Erro ao carregar arquivo {} do supplyId={}", fileName, supplyId, e);
+			throw new RuntimeException("Erro ao carregar arquivo", e);
+		}
+	}
+
+	public String getContentType(Resource resource) {
+		try {
+			Path path = resource.getFile().toPath();
+			return Files.probeContentType(path);
+		} catch (IOException e) {
+			log.warn("Não foi possível detectar content type para {}", resource.getFilename());
+			return "application/octet-stream";
+		}
+	}
+
+	public List<SupplyResponseDto> getSuppliesByDriverId(Long driverId) {
+		List<Supply> supplies = supplyRepository.findByDriverId(driverId);
+		return supplies.stream().map(this::toDto).toList();
 	}
 
 }

@@ -11,6 +11,9 @@ public record SupplyResponseDto(
         String fuelType,
         Long odometer,
         String obs,
+        char status,
+        Integer approverId,
+        String approvalComment,
         DriverDto driver,
         VehicleDto vehicle
 ) {
