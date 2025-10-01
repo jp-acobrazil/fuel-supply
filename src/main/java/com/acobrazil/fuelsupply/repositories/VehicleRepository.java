@@ -16,22 +16,23 @@ public interface VehicleRepository extends CrudRepository<Vehicle, Integer> {
 	Optional<Vehicle> findByPlate(String plate);
 
 	@Query(value = """
-			SELECT data as dataUltimoAbastecimento,
-			hodometro as ultimoHodometroRegistrado,
-			placa,
-			descricao as modeloVeiculo
-			FROM (
-			SELECT a.data,
-			a.hodometro,
-			a.placa,
-			v.descricao,
-			ROW_NUMBER() OVER (PARTITION BY a.placa ORDER BY a.data DESC) AS rn
-			FROM abz_abastecimento a
-			JOIN pcveicul v ON a.placa = v.placa
-			) t
-			WHERE rn = 1
-			AND PLACA = :plate
-			--ORDER BY data DESC;
-			""", nativeQuery = true)
+	    SELECT 
+	        v.placa,
+	        v.descricao AS modeloVeiculo,
+	        v.tipoveiculo,
+	        a.data AS dataUltimoAbastecimento,
+	        a.hodometro AS ultimoHodometroRegistrado
+	    FROM pcveicul v
+	    LEFT JOIN (
+	        SELECT 
+	            a.placa,
+	            a.data,
+	            a.hodometro,
+	            ROW_NUMBER() OVER (PARTITION BY a.placa ORDER BY a.data DESC) AS rn
+	        FROM abz_abastecimento a
+	    ) a ON v.placa = a.placa AND a.rn = 1
+	    WHERE v.placa = :plate
+	    """, nativeQuery = true)
 	VehicleInfosProjection findVehicleInfos(String plate);
+
 }

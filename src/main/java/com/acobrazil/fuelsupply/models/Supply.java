@@ -2,7 +2,6 @@ package com.acobrazil.fuelsupply.models;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,8 +40,11 @@ public class Supply {
     @Column(name = "tipocombustivel", nullable = false, length = 50)
     private String fuelType;
 
-    @Column(name = "hodometro", nullable = false, precision = 12)
+    @Column(name = "hodometro", precision = 12)
     private Long odometer;
+
+    @Column(name = "horimetro", precision = 12)
+    private Long hourmeter;
 
     @Column(name = "numcar")
     private Integer loadNumber;

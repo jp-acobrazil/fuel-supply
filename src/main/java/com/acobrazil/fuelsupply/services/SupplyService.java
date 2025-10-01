@@ -45,12 +45,42 @@ public class SupplyService {
 
 	public SupplyResponseDto createSupply(SupplyRequestDto supply) {
 		log.info("Iniciando criação de abastecimento para motoristaId={}, placa={}", supply.driverId(), supply.plate());
-
-		Supply supplyEntity = Supply.builder().date(LocalDateTime.now()).driverId(supply.driverId())
-				.liters(supply.liters()).pricePerLiter(supply.pricePerLiter()).plate(supply.plate())
-				.fuelType(supply.fuelType()).odometer(supply.odometer()).loadNumber(null).inRoute("N")
-				.stationCnpj(supply.stationCnpj()).stationName(null).obs(supply.obs())
-				.status(SupplyStatus.CREATED.getStatus()).build();
+		
+		Vehicle vehicle = vehicleRepository.findByPlate(supply.plate()).orElseThrow(() -> {
+			log.error("Veículo não encontrado! plate={}", supply.plate());
+			return new VehicleNotFoundException("Vehicle not found with plate: " + supply.plate());
+		});
+		
+		log.debug("Veículo encontrado: {} - Tipo: {}", vehicle.getDescription(), vehicle.getPlate(), vehicle.getCarType());
+		
+		if("X".equals(vehicle.getCarType())) {
+			if(supply.hourmeter() == null) {
+				log.error("Abastecimento de máquina exige horímetro. Abastecimento rejeitado.");
+				throw new IllegalArgumentException("Abastecimento de máquina exige horímetro.");
+			}
+		} else {
+			if(supply.odometer() == null) {
+				log.error("Abastecimento de veículo exige odômetro. Abastecimento rejeitado.");
+				throw new IllegalArgumentException("Abastecimento de veículo exige odômetro.");
+			}
+		}
+		
+	    Supply supplyEntity = Supply.builder()
+	            .date(LocalDateTime.now())
+	            .driverId(supply.driverId())
+	            .liters(supply.liters())
+	            .pricePerLiter(supply.pricePerLiter())
+	            .plate(supply.plate())
+	            .fuelType(supply.fuelType())
+	            .odometer(supply.odometer())
+	            .hourmeter(supply.hourmeter())
+	            .loadNumber(null)
+	            .inRoute("N")
+	            .stationCnpj(supply.stationCnpj())
+	            .stationName(supply.stationName())
+	            .obs(supply.obs())
+	            .status(SupplyStatus.CREATED.getStatus())
+	            .build();
 
 		log.info("Entidade de abastecimento criada: {}", supplyEntity);
 
@@ -58,15 +88,11 @@ public class SupplyService {
 			log.error("Motorista não encontrado! driverId={}", supply.driverId());
 			return new DriverNotFoundException("Driver not found with id: " + supply.driverId());
 		});
+		
 		supplyEntity.setDriver(driver);
 		log.debug("Motorista encontrado: {}", driver.getName());
 
-		Vehicle vehicle = vehicleRepository.findByPlate(supply.plate()).orElseThrow(() -> {
-			log.error("Veículo não encontrado! plate={}", supply.plate());
-			return new VehicleNotFoundException("Vehicle not found with plate: " + supply.plate());
-		});
 		supplyEntity.setVehicle(vehicle);
-		log.debug("Veículo encontrado: {}", vehicle.getDescription());
 
 		Supply savedSupply = supplyRepository.save(supplyEntity);
 		log.info("Abastecimento salvo com sucesso! id={}", savedSupply.getId());
@@ -130,9 +156,23 @@ public class SupplyService {
 		VehicleDto vehicleDto = new VehicleDto(vehicle.getId(), vehicle.getPlate(), vehicle.getCarType(),
 				vehicle.getDescription(), vehicle.getIsOwn());
 
-		return new SupplyResponseDto(supply.getId(), supply.getDate(), supply.getLiters(), supply.getPricePerLiter(),
-				supply.getFuelType(), supply.getOdometer(), supply.getObs(), supply.getStatus(), supply.getApproverId(),
-				supply.getApprovalComment(), driverDto, vehicleDto);
+		return new SupplyResponseDto(
+				supply.getId(), 
+				supply.getDate(), 
+				supply.getLiters(), 
+				supply.getPricePerLiter(),
+				supply.getFuelType(), 
+				supply.getOdometer(),
+				supply.getHourmeter(),
+				supply.getLoadNumber(),
+				supply.getInRoute(),
+				supply.getStationCnpj(),
+				supply.getStationName(),
+				supply.getObs(), 
+				supply.getStatus(), 
+				supply.getApproverId(),
+				supply.getApprovalComment(), 
+				driverDto, vehicleDto);
 	}
 
 	public void saveSupplyPhotos(Long supplyId, MultipartFile pumpPhoto, MultipartFile odometerPhoto,

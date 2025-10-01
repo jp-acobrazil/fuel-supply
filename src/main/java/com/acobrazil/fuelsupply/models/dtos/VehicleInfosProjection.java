@@ -7,4 +7,5 @@ public interface VehicleInfosProjection {
 	String getUltimoHodometroRegistrado();
 	String getPlaca();
 	String getModeloVeiculo();
+	String getTipoVeiculo();
 }
