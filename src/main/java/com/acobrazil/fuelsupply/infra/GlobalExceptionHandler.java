@@ -1,6 +1,6 @@
 package com.acobrazil.fuelsupply.infra;
 
-import com.acobrazil.fuelsupply.models.exceptions.DriverNotFoundException;
+import com.acobrazil.fuelsupply.models.exceptions.EmployeeNotFoundException;
 import com.acobrazil.fuelsupply.models.exceptions.VehicleNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,8 +14,8 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(DriverNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(DriverNotFoundException ex) {
+    @ExceptionHandler(EmployeeNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(EmployeeNotFoundException ex) {
         return getMapResponseEntity(ex.getMessage(), ex);
     }
 

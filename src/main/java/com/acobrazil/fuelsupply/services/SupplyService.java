@@ -1,16 +1,16 @@
 package com.acobrazil.fuelsupply.services;
 
-import com.acobrazil.fuelsupply.models.Driver;
+import com.acobrazil.fuelsupply.models.Employee;
 import com.acobrazil.fuelsupply.models.Supply;
 import com.acobrazil.fuelsupply.models.Vehicle;
-import com.acobrazil.fuelsupply.models.dtos.DriverDto;
+import com.acobrazil.fuelsupply.models.dtos.EmployeeDto;
 import com.acobrazil.fuelsupply.models.dtos.SupplyRequestDto;
 import com.acobrazil.fuelsupply.models.dtos.SupplyResponseDto;
 import com.acobrazil.fuelsupply.models.dtos.VehicleDto;
 import com.acobrazil.fuelsupply.models.enums.SupplyStatus;
 import com.acobrazil.fuelsupply.models.exceptions.SupplyNotFoundException;
 import com.acobrazil.fuelsupply.models.exceptions.VehicleNotFoundException;
-import com.acobrazil.fuelsupply.repositories.DriverRepository;
+import com.acobrazil.fuelsupply.repositories.EmployeeRepository;
 import com.acobrazil.fuelsupply.repositories.VehicleRepository;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,7 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.acobrazil.fuelsupply.repositories.SupplyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import com.acobrazil.fuelsupply.models.exceptions.DriverNotFoundException;
+import com.acobrazil.fuelsupply.models.exceptions.EmployeeNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -37,7 +37,7 @@ import java.util.stream.StreamSupport;
 public class SupplyService {
 
 	private final SupplyRepository supplyRepository;
-	private final DriverRepository driverRepository;
+	private final EmployeeRepository employeeRepository;
 	private final VehicleRepository vehicleRepository;
 
 	@Value("${upload.directory}")
@@ -84,9 +84,9 @@ public class SupplyService {
 
 		log.info("Entidade de abastecimento criada: {}", supplyEntity);
 
-		Driver driver = driverRepository.findById(supply.driverId()).orElseThrow(() -> {
+		Employee driver = employeeRepository.findById(supply.driverId()).orElseThrow(() -> {
 			log.error("Motorista não encontrado! driverId={}", supply.driverId());
-			return new DriverNotFoundException("Driver not found with id: " + supply.driverId());
+			return new EmployeeNotFoundException("Driver not found with id: " + supply.driverId());
 		});
 		
 		supplyEntity.setDriver(driver);
@@ -130,6 +130,7 @@ public class SupplyService {
 		// Resetar status para "CREATED" quando motorista reenvia
 		existing.setStatus(SupplyStatus.CREATED.getStatus());
 		existing.setApproverId(null);
+		existing.setApprovalDate(null);
 		existing.setApprovalComment(null);
 
 		Supply updated = supplyRepository.save(existing);
@@ -141,6 +142,7 @@ public class SupplyService {
 				.orElseThrow(() -> new SupplyNotFoundException("Supply not found with id: " + id));
 
 		supply.setApproverId(approverId);
+		supply.setApprovalDate(LocalDateTime.now());
 		supply.setStatus(status.getStatus());
 		supply.setApprovalComment(comment);
 
@@ -149,12 +151,17 @@ public class SupplyService {
 	}
 
 	public SupplyResponseDto toDto(Supply supply) {
-		Driver driver = supply.getDriver();
-		DriverDto driverDto = new DriverDto(driver.getDriverId(), driver.getName());
+		Employee driver = supply.getDriver();
+		EmployeeDto driverDto = new EmployeeDto(driver.getId(), driver.getName());
 
 		Vehicle vehicle = supply.getVehicle();
 		VehicleDto vehicleDto = new VehicleDto(vehicle.getId(), vehicle.getPlate(), vehicle.getCarType(),
 				vehicle.getDescription(), vehicle.getIsOwn());
+		
+		String approverName = supply.getApproverId() != null ? 
+				employeeRepository.findById(supply.getApproverId())
+				.map(Employee::getName)
+				.orElse("") : "";
 
 		return new SupplyResponseDto(
 				supply.getId(), 
@@ -169,8 +176,10 @@ public class SupplyService {
 				supply.getStationCnpj(),
 				supply.getStationName(),
 				supply.getObs(), 
-				supply.getStatus(), 
+				supply.getStatus(),
 				supply.getApproverId(),
+				approverName,
+				supply.getApprovalDate(),
 				supply.getApprovalComment(), 
 				driverDto, vehicleDto);
 	}

@@ -13,11 +13,11 @@ import lombok.Setter;
 @Data
 @Setter
 @Getter
-public class Driver {
+public class Employee {
 
     @Id
     @Column(name = "matricula")
-    private int driverId;
+    private int id;
 
     @Column(name = "nome")
     private String name;

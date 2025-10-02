@@ -3,9 +3,9 @@ package com.acobrazil.fuelsupply.repositories;
 import org.springframework.data.repository.CrudRepository;
 import org.springframework.stereotype.Repository;
 
-import com.acobrazil.fuelsupply.models.Driver;
+import com.acobrazil.fuelsupply.models.Employee;
 
 @Repository
-public interface DriverRepository extends CrudRepository<Driver, Integer> {
+public interface EmployeeRepository extends CrudRepository<Employee, Integer> {
 
 }

@@ -65,7 +65,10 @@ public class Supply {
     private char status;
 
     @Column(name = "codfuncaprov")
-    private Integer approverId; // Código do funcionário que aprovou
+    private Integer approverId;
+    
+    @Column(name = "dataaprovacao")
+    private LocalDateTime approvalDate;
     
     @Column(name = "comentario_aprovacao", length = 500)
     private String approvalComment;
@@ -78,5 +81,5 @@ public class Supply {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "codmotorista", referencedColumnName = "matricula")
-    private Driver driver;
+    private Employee driver;
 }

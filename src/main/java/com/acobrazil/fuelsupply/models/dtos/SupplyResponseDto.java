@@ -18,8 +18,10 @@ public record SupplyResponseDto(
         String obs,
         char status,
         Integer approverId,
+        String approverName,
+        LocalDateTime approvalDate,
         String approvalComment,
-        DriverDto driver,
+        EmployeeDto driver,
         VehicleDto vehicle
 ) {
 }
