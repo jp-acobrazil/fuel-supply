@@ -32,6 +32,7 @@ public interface VehicleRepository extends CrudRepository<Vehicle, Integer> {
 	        FROM abz_abastecimento a
 	    ) a ON v.placa = a.placa AND a.rn = 1
 	    WHERE v.placa = :plate
+	    AND v.situacao = 'L'
 	    """, nativeQuery = true)
 	VehicleInfosProjection findVehicleInfos(String plate);
 
